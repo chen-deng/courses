@@ -1,0 +1,6 @@
+hidden_units,training_error, testing_error
+10,1.49, 8.61
+20, 1.49, 9.94
+30, 1.49, 7.94
+50, 0, 7.94
+100, 0.00, 6.6

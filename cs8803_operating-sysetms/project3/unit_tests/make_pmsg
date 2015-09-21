@@ -1,0 +1,14 @@
+all: test_pmsg_send test_pmsg_recv
+
+LD_FLAGS=-lrt
+
+test_pmsg_send: test_pmsg_send.c
+	gcc -Wall test_pmsg_send.c -o test_pmsg_send $(LD_FLAGS)
+
+test_pmsg_recv: test_pmsg_recv.c
+	gcc -Wall test_pmsg_recv.c -o test_pmsg_recv $(LD_FLAGS)
+
+clean:
+	rm -f test_pmsg_send
+	rm -f test_pmsg_recv
+	

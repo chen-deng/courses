@@ -1,0 +1,14 @@
+all: test_pshm_xfr_writer test_pshm_xfr_reader 
+
+LD_FLAGS=-lrt -lpthread
+
+test_pshm_xfr_reader: test_pshm_xfr_reader.c test_pshm_xfr.h
+	gcc -Wall test_pshm_xfr_reader.c -o test_pshm_xfr_reader $(LD_FLAGS)
+
+test_pshm_xfr_writer: test_pshm_xfr_writer.c test_pshm_xfr.h
+	gcc -Wall test_pshm_xfr_writer.c -o test_pshm_xfr_writer $(LD_FLAGS)
+
+clean:
+	rm -f test_pshm_xfr_reader
+	rm -f test_pshm_xfr_writer
+	
