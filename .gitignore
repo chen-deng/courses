@@ -37,3 +37,7 @@ cs7641_machine_learning/assignment1/rkekatpure3/
 cs7641_machine_learning/assignment1/writeup/*
 !cs7641_machine_learning/assignment1/writeup/*.tex
 !cs7641_machine_learning/assignment1/writeup/*.pdf
+cs7641_machine_learning/assignment2/writeup/*
+!cs7641_machine_learning/assignment2/writeup/*.tex
+!cs7641_machine_learning/assignment2/writeup/*.pdf
+
