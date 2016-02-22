@@ -1,20 +1,8 @@
 **.idea**
-cs8803_operating-sysetms/lectures
-cs8803_operating-sysetms/problem-sets
-cs8803_operating-sysetms/**/bin/*
-cs8803_operating-sysetms/**/resources
-cs8803_operating-sysetms/**/downloads
-cs8803_operating-sysetms/**/project1/sample-code
-cs8803_operating-sysetms/**/echo-server-client
-cs8803_operating-sysetms/**/multithreaded-client
-cs8803_operating-sysetms/**/multithreaded-helloworld
-cs8803_operating-sysetms/**/singlethreaded-client-server-v0
-cs8803_operating-sysetms/**/singlethreaded-client-server-v1
 **.DS_Store**
 **a.out**
 **.jpg
 **.JPG
-**.PDF
 **.mpg
 **.txt
 **.log
@@ -26,10 +14,6 @@ cs8803_operating-sysetms/**/singlethreaded-client-server-v1
 **.swp
 **.pyc
 **.Rhistory
-
-cs8803_operating-sysetms/project3/**/cached_files
-cs8803_operating-sysetms/project3/**/courses
-cs8803_operating-sysetms/project3/**/gfclient_*
 
 cs7641_machine_learning/assignment1/mnist/*
 cs7641_machine_learning/assignment1/rkekatpure3/
