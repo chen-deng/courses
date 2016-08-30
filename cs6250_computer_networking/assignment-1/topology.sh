@@ -25,18 +25,14 @@ rootdir=topology-$exptid
 
 for n in 1; do
     dir=$rootdir
-    
     python measure.py \
         --dir $dir 
-    
-
     python util/plot_rate.py \
         --xlabel 'Time (s)' \
         --ylabel 'Rate (Mbps)' \
         -i 's.*-eth1' \
         -f $dir/bwm.txt \
         -o $dir/rate.png
-        
     python util/plot_tcpprobe.py \
         -f $dir/tcp_probe.txt \
         -o $dir/cwnd.png

@@ -7,10 +7,12 @@ import re
 logfile = None
 
 def open_log(filename):
+    global logfile
     logfile = open(filename, "w")
     
 
 def write_forwarding_entry(switchnum, switchport, macaddr):
+    global logfile
     # Prints out a forwarding entry to the log file
 
     # Lots of type checking beforehand.
@@ -25,13 +27,15 @@ def write_forwarding_entry(switchnum, switchport, macaddr):
         raise TypeError("macaddr is not in proper form: 00:00:00:00:00:00")
 
     logfile.write(str(switchnum) + " " + str(switchport) + " " + macaddr.lower() + "\n")
-    print str(switchnum) + " " + str(switchport) + " " + macaddr.lower())
+    print str(switchnum) + " " + str(switchport) + " " + macaddr.lower()
 
 def next_entry():
+    global logfile
     logfile.write("\n")
     print ""
 
 def finish_log():
+    global logfile
     logfile.close()
 
 

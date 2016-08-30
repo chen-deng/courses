@@ -1,0 +1,125 @@
+%%%%%%%%%%%%%%%%%%%%%%% preamble %%%%%%%%%%%%%%%%%%%%%%%%%%%
+\documentclass[10pt,letterpaper]{article}
+\usepackage{opex3}
+\usepackage{hyperref}
+\usepackage{marginnote}
+\usepackage{framed}
+\usepackage{amssymb}
+\hypersetup{colorlinks=true,
+		      urlcolor=blue}
+\usepackage{amsmath}      
+\usepackage{listings}
+\lstdefinestyle{mybashstyle}{
+  language=Python,
+  numbers=none,
+  stepnumber=1,
+  numbersep=10pt,
+  tabsize=4,
+  showspaces=false,
+  showstringspaces=false,
+  commentstyle=\color{light-gray},
+  keywordstyle=\color{magenta},  
+}
+\lstset{
+		emph={from, hadoop, fs, ls, put, get, mkdir, 
+			text, copyFromLocal, copyToLocal,
+			cp, mv, cat, appendToFile, select, and,
+			where, set, true, false, done, do, hive,
+			transform, using, limit, use, add
+			},
+%	morekeywords={hadoop, fs, ls, put, get, cat, copyToLocal, copyFromLocal},
+	basicstyle={\ttfamily}, 
+ 	style=mybashstyle,
+	emphstyle={\color{magenta}}
+ }
+\newcommand{\myeqno}[1]{Eq.~\eqref{#1}}
+\setlength{\parskip}{0.5em}
+\setlength{\parindent}{0em}
+\definecolor{mygray}{gray}{0.6}
+
+%%%%%%%%%%%%%%%%%%%%%%% begin %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%\linespread{1.25}
+\begin{document}
+\title{\large{AI systems for query understanding and response}}
+\author{\href{mailto:rohan.kekatpure@gmail.com}{Rohan D. Kekatpure}}
+%%
+\section{Problem description}
+We consider the general problem of building an AI agent capable of understanding human queries and providing resources (URLs) as responses. One could consider this problem to be solved. After all, isn't that precisely what search systems like Google and Bing do? Yes, and in that sense this writeup could be considered an analysis of those systems as opposed to a novel design.
+
+If you Google the phrase \href{https://goo.gl/IRRxB1}{``how to throw away a bad habit''}, none of the first 10 results contain the words ``throw away''. The titles of the returned URLs seem more relevant than the phrasing of the original question. How does Google extract deeper meaning from my poorly phrased question? In this writeup we consider possible ways in which Google could be doing this.
+
+\section{What makes the problem difficult}
+Two main aspects make the problem difficult. First is extracting semantic meaning from ambiguities present in human language. This was covered well in the lecture on {\em Understanding} and does not bear repeating here. Second is the problem scale: the web contains an estimated 50 billion indexed URLs, each of which is a candidate solution. Even a naive approach of returning URLs with the closest word-similarity would return {\em something}. The problem is it wont be relevant. 
+
+To provide relevant results, the phrases have to be mapped to more encompassing language elements (``throw away'' $\to$ ``get rid of'' vs ``propel''). But, as seen in the lecture on {\em Understanding}, this mapping is highly context dependent. Also, manual generation of this mapping is a non-starter. The only scalable way to  build this mapping is from the queries and results themselves. 
+
+\section{{\em Understanding} to the rescue}
+The lecture on {\em Understanding} provides a starting point. Lets assume that we choose to build this system using frames-based knowledge representation. Further assume that initially the frames are either blank or sparsely populated. Our task is to generate more frames from the queries and populate the existing frames using the responses that are chosen.
+
+Assuming we have a good semantic mapping of words to their meta-categories for every query context, then the task is to simply retrieve the documents matching the frame, sort them by a suitable score (such as TFIDF) and return the results.
+
+However, we {\em don't} have a good mapping initially (e.g. Google in the early days) and it must be built. The central concept that will help us build this set is that of ``enrichment through feedback''. 
+
+\section{Enriching knowledge frames through feedback}
+\begin{figure}[!tbp]
+%\centering
+\includegraphics[width=6in]{./figures/arch.png}
+\caption{Architecture of a query response and knowledge enrichment system. \label{fig1}}
+\end{figure}
+Figure~\ref{fig1} provides a conceptual architecture of a query understanding and response system that enriches its knowledge-base via analysis of user feedback. Human users interact with the system by making a query and consuming the results. The system, in turn, provides results by searching its existing knowledge base and incorporating the analyzed results of user choice.
+
+By allowing such a system to run for a reasonable amount of time, one can expect the frames to stabilize their representation of a concept. Continuing our example query of ``throwing away a bad habit'', let us assume that the pre-processing step tokenized the query, removed the stop words, and created a question frame (serialized as a JSON) as follows:
+%%
+\begin{center}
+    {\tt
+        \begin{tabular}{ |l|  }
+          \hline
+          \{\\
+          \quad "agent":  null\\
+          \quad "context": "habit"\\
+          \quad "verb": "throw"\\
+          \quad "meta-verbs": \{"propel": 0.95, "other": 0.05 \} \\
+          \}\\
+          \hline  
+        \end{tabular}
+    }
+\end{center}
+%%
+Initially, the system is has only one dominant mapping of the verb `throw' to `propel'. Consequently, most results  are returned based on 'habit' and aren't relevant to the query. However, the user selects few webpages that seem slightly relevant to getting rid of bad habits. The system parses the test and extracts other verbs from these retrieved webpages and uses this data to enrich the frame. For example, the words in the user-selected webpages contains other phrases like 'kicking bad habits', 'get rid of smoking' and so on. The system computes new weights for the meta-verbs and inserts them back into the database. The enriched frame for the verb `throw' might look like:
+%%
+\begin{center}
+    {\tt
+        \begin{tabular}{ |l|  }
+          \hline
+          \{\\
+          \quad "agent":  null\\
+          \quad "context": "habit"\\
+          \quad "verb": "throw"\\
+          \quad "meta-verbs":  \\
+          \qquad\{"propel": 0.65, "discard": 0.3, "kick": 0.05 \} \\
+          \}\\
+          \hline  
+        \end{tabular}
+    }
+\end{center}
+%%
+While the dominant mapping is still incorrect, the weights for relevant verbs are increasing. It is not hard to imagine the weights converging toward relevant meta-verbs after a few hundred thousand queries. 
+
+The frame-enrichment task is most likely a ``batch'' task. I.e. the new frames aren't immediately available for retrieval; they must be enriched in a nightly analysis run in a distributed computing cluster and available the next morning. 
+
+\section{Summary}
+We considered conceptual design of a query response and knowledge enrichment system using {\em Understanding}. We chose frames as our knowledge representation and outlined how those frames can be populated with useful content at scale. The design presented is at a very high-level and glides over may practicalities such including sentence analysis, element (noun, verb) extraction, stopword removal, HTML parsing and distributed document retrieval. These are, however, solved problems with well-known open-source solutions available. Our focus here was on knowledge-enrichment which is essential to use {\em Understanding} for building practical systems.
+\end{document}
+
+
+
+
+
+
+
+
+
+
+
+
+
