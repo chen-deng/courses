@@ -2,6 +2,8 @@
 **.DS_Store**
 **a.out**
 **.jpg
+**.png
+**.pptx
 **.JPG
 **.mpg
 **.txt
@@ -23,4 +25,4 @@ cs7641_machine_learning/assignment1/writeup/*
 cs7641_machine_learning/assignment2/writeup/*
 !cs7641_machine_learning/assignment2/writeup/*.tex
 !cs7641_machine_learning/assignment2/writeup/*.pdf
-
+!cs8803O03_reinforcement_learning/hw1/*.png
