@@ -22,8 +22,8 @@ def game(B_, quit_amt):
   return tot_amt
 
 if __name__ == '__main__':
-  DIEN = "0111001100111011001011111001"
-  MAX_GAMES = 10000000
+  DIEN = "10100010"
+  MAX_GAMES = 50000
   B = [int(i) for i in DIEN]  
   quitting_amounts = range(0, 15, 1)
   earnings = np.zeros((MAX_GAMES, len(quitting_amounts)))
