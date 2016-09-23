@@ -4,6 +4,7 @@
 #### Steps to run the code
 
 The entire code is contained in a single python file named `proj1.py`
+
 1. Clone the repository
 
     $ git clone https://...
