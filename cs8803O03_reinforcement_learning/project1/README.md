@@ -1,7 +1,5 @@
 ## CS8803O03 Reinforcement Learning
-### Project 1 code
-
-#### Steps to run the code
+### Steps to run Project 1 code
 
 The entire code is contained in a single python file named `proj1.py`
 
