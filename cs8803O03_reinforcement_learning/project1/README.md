@@ -9,7 +9,8 @@ The entire code is contained in a single python file named `proj1.py`
     $ git clone https://...
     ```
 
-2. Make sure you have `numpy` installed. You can make that sure 
+2. Make sure you have `numpy` installed. It is installed if the following code
+runs without any errors
 
     ```
     $ python -c "import numpy"
