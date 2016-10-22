@@ -13,13 +13,7 @@ from sklearn.svm import SVR
 from sklearn.tree import DecisionTreeRegressor
 from sklearn.neural_network import MLPRegressor
 
-from utils import FixedLengthList
-
-from keras.models import Sequential
-from keras.layers import Dense
-from keras.wrappers.scikit_learn import KerasRegressor
-
-
+# Constants
 NOP, LFIRE, MFIRE, RFIRE = range(4)
 
 ACTION_ENCODING = {
@@ -31,19 +25,22 @@ ACTION_ENCODING = {
 
 Nfeatures = 13
 
-def baseline_model():
-    # Build model
-    model = Sequential()
-    hidden1 = Dense(200, input_dim=13, init="normal", activation="relu", bias=True)
-    hidden2 = Dense(200, init="normal", activation="relu")
-    output_layer = Dense(1, init="normal")
-    model.add(hidden1)
-    model.add(hidden2)
-    model.add(output_layer)
+class FixedLengthList(object):
+    def __init__(self, maxsize):
+        self.maxsize = maxsize
+        self.lst = list()
 
-    # Compile model
-    model.compile(loss="mean_squared_error", optimizer="rmsprop")
-    return model
+    def put(self, item):
+        if len(self.lst) >= self.maxsize:
+            self.lst.pop(0)
+        self.lst.append(item)
+
+    def putlist(self, lst):
+        for item in lst:
+            self.put(item)
+
+    def sample(self, samplesize):        
+        return random.sample(self.lst, min(samplesize, len(self.lst)))
 
 
 class LunarLanderAgent(object):
@@ -54,6 +51,12 @@ class LunarLanderAgent(object):
         self.action_space = [NOP, LFIRE, MFIRE, RFIRE]
         self.Nactions = len(self.action_space)
         self.observations = FixedLengthList(maxsize=self.REPLAY_MEMORY)
+        self.gamma = 0.99
+        self.eps = 0.99
+        self.eps_decay = 0.99
+        self.min_eps = 0.1
+        self.min_learning_rate = 1e-4
+        self.learning_rate_init = 1e-4
 
         # linear regressor
         self.lm = LinearRegression(fit_intercept=False)
@@ -66,25 +69,17 @@ class LunarLanderAgent(object):
         # Decision tree regressor
         self.dtr = DecisionTreeRegressor(max_depth=5)
 
-        # Keras neural net learner
-        self.nn = KerasRegressor(build_fn=baseline_model, 
-                                 nb_epoch=1,
-                                 verbose=0)
-
+        # Neural net regressor
         self.snn = MLPRegressor(hidden_layer_sizes=(50, 50),
                                 activation="relu",
                                 batch_size=self.TRAINING_BATCH_SIZE,
                                 max_iter=2,
                                 solver="adam",
                                 warm_start=True,
-                                learning_rate="invscaling",
-                                learning_rate_init=1e-4) 
+                                learning_rate="constant",
+                                learning_rate_init=self.learning_rate_init) 
 
-        self.fa = self.snn
-        self.gamma = 0.99
-        self.eps = 0.99
-        self.eps_decay = 0.99
-        self.min_eps = 0.1
+        self.fa = self.snn      
 
     def dummy_encode(self, actions_):        
         da = [ACTION_ENCODING[a] for a in actions_]            
@@ -134,13 +129,16 @@ class LunarLanderAgent(object):
 
     def act(self, state, reward, n_episode, done):
         if done:
-            # Decay the epsilon
+            # Decay the epsilon            
             self.eps = max(self.min_eps, self.eps * self.eps_decay)
 
         if n_episode < self.MAX_PURE_EXPL_EPISODES:
             return random.choice(self.action_space)
         else:            
-            # Train the agent
+            # Decay the learning rate and train the agent
+            self.fa.learning_rate_init = \
+                max(self.learning_rate_init / np.sqrt(n_episode + 1 - self.MAX_PURE_EXPL_EPISODES),
+                    self.min_learning_rate)
             self.train()                    
 
             # Epsilon-greedy action choice
@@ -193,28 +191,31 @@ def main():
     agent = LunarLanderAgent()
 
     Nfeatures = 13
-    max_episodes = 20000
-    max_steps = 10000
-    reward = 0
-    done = False    
+    max_episodes = 5000    
     tot_rewards = []
 
     for episode in range(max_episodes):        
-        print "Episode %d, average reward = %f" \
-            % (episode, np.mean(tot_rewards[-100:]))
-        state = env.reset()                        
-        tot_reward = 0
-        for _ in range(max_steps):            
-            action = agent.act(state, reward, episode, done)
+        avg_reward = np.mean(tot_rewards[-100:])
+        print "Episode %d, learning rate = %0.2e average reward = %0.2f" \
+            % (episode, agent.fa.learning_rate_init, avg_reward)
+
+        reward = episode_reward = 0                
+        state = env.reset()
+
+        # Perform an initial training step before the episode start.
+        _ = agent.act(state, 0, episode, True)
+        
+        # Simulate an episode
+        done = False
+        while not done:
+            action = agent.act(state, reward, episode, done, avg_reward)
             obs = {"state": state, "action": action}            
             state, reward, done, _ = env.step(action)            
             obs.update({"next_state": state, "reward": reward, "done": done})
             agent.observations.put(obs)
-            tot_reward += reward
-            # env.render()
-            if done:
-               break            
-        tot_rewards.append(tot_reward)    
+            episode_reward += reward
+        tot_rewards.append(episode_reward)    
+
     env.monitor.close()
     return tot_rewards
 

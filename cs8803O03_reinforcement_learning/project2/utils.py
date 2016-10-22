@@ -17,3 +17,4 @@ class FixedLengthList(object):
     def sample(self, samplesize):        
         return random.sample(self.lst, min(samplesize, len(self.lst)))
 
+
