@@ -51,9 +51,9 @@ class LunarLanderAgent(object):
         self.action_space = [NOP, LFIRE, MFIRE, RFIRE]
         self.Nactions = len(self.action_space)
         self.observations = FixedLengthList(maxsize=self.REPLAY_MEMORY)
-        self.gamma = 0.99
+        self.gamma = 0.75
         self.eps = 0.99
-        self.eps_decay = 0.99
+        self.eps_decay = 0.999
         self.min_eps = 0.1
         self.min_learning_rate = 1e-4
         self.learning_rate_init = 1e-4
@@ -62,6 +62,9 @@ class LunarLanderAgent(object):
         self.lm = LinearRegression(fit_intercept=False)
         self.lm.coef_ = np.ones((Nfeatures, ))
         self.lm.intercept_ = 0.0
+
+        # Keep track of average reward
+        self.max_avg_reward = -1000.0
 
         # Support vector regressor
         self.svr = SVR(C=0.01, epsilon=0.2)
@@ -80,6 +83,26 @@ class LunarLanderAgent(object):
                                 learning_rate_init=self.learning_rate_init) 
 
         self.fa = self.snn      
+
+    def set_epsilon(self, r):
+        # B = np.log(99.0) / 50.0       
+        # if self.max_avg_reward <= 0:
+        #     self.eps = max(self.min_eps, self.eps * self.eps_decay)
+        # elif 0 < self.max_avg_reward <= 50:
+        #     self.eps = 0.4 / (1.0 + np.exp(B * r))
+
+        if self.max_avg_reward <= 0:
+            self.eps = max(self.min_eps, self.eps * self.eps_decay)
+        elif 0 < self.max_avg_reward <= 50:
+            self.eps = 0.1
+        elif 50 < self.max_avg_reward <= 100:
+            self.eps = 0.05
+        elif 100 < self.max_avg_reward <= 150:            
+            self.eps = 0.02
+        elif 150 < self.max_avg_reward <= 200:
+            self.eps = 0.01
+        elif self.max_avg_reward > 200:
+            self.eps = 0.005        
 
     def dummy_encode(self, actions_):        
         da = [ACTION_ENCODING[a] for a in actions_]            
@@ -127,10 +150,18 @@ class LunarLanderAgent(object):
 
         # self.fa.fit(state_actions, targets)        
 
-    def act(self, state, reward, n_episode, done):
+    def act(self, state, reward, n_episode, done, avg_reward=None):
+
+        # Record average reward
         if done:
-            # Decay the epsilon            
-            self.eps = max(self.min_eps, self.eps * self.eps_decay)
+            # self.max_avg_reward = max(self.max_avg_reward, avg_reward)
+            self.max_avg_reward = avg_reward
+            self.set_epsilon(avg_reward)
+
+        # if done and self.max_avg_reward < 50.0:            
+        #     self.eps = max(self.min_eps, self.eps * self.eps_decay)
+        # elif done and self.max_avg_reward >= 50:
+        #     self.eps = self.min_eps / 10.0
 
         if n_episode < self.MAX_PURE_EXPL_EPISODES:
             return random.choice(self.action_space)
@@ -182,7 +213,7 @@ def main():
     # directory, including one with existing data -- all monitor files
     # will be namespaced). You can also dump to a tempdir if you'd
     # like: tempfile.mkdtemp().
-    outdir = "tmp/random-agent-results"
+    outdir = "tmp/lunar_lander_results"
     env.monitor.start(outdir, force=True, seed=0)
 
     # This declaration must go *after* the monitor call, since the
@@ -191,19 +222,20 @@ def main():
     agent = LunarLanderAgent()
 
     Nfeatures = 13
-    max_episodes = 5000    
+    max_episodes = 2500    
     tot_rewards = []
 
     for episode in range(max_episodes):        
         avg_reward = np.mean(tot_rewards[-100:])
-        print "Episode %d, learning rate = %0.2e average reward = %0.2f" \
-            % (episode, agent.fa.learning_rate_init, avg_reward)
+        print "Ep %d, alph=%0.2e, arwd=%0.2f, mrwd=%0.2f, eps=%0.2e" \
+            % (episode, agent.fa.learning_rate_init, avg_reward, 
+               agent.max_avg_reward, agent.eps)
 
         reward = episode_reward = 0                
         state = env.reset()
 
         # Perform an initial training step before the episode start.
-        _ = agent.act(state, 0, episode, True)
+        _ = agent.act(state, 0, episode, True, avg_reward)
         
         # Simulate an episode
         done = False
