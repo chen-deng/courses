@@ -51,7 +51,7 @@ class LunarLanderAgent(object):
         self.action_space = [NOP, LFIRE, MFIRE, RFIRE]
         self.Nactions = len(self.action_space)
         self.observations = FixedLengthList(maxsize=self.REPLAY_MEMORY)
-        self.gamma = 0.75
+        self.gamma = 0.995
         self.eps = 0.99
         self.eps_decay = 0.999
         self.min_eps = 0.1
@@ -222,7 +222,7 @@ def main():
     agent = LunarLanderAgent()
 
     Nfeatures = 13
-    max_episodes = 2500    
+    max_episodes = 5000    
     tot_rewards = []
 
     for episode in range(max_episodes):        
@@ -253,5 +253,9 @@ def main():
 
 if __name__ == '__main__':
     total_rewards = main()
+    with open("lunar_lander_5k.txt", "w") as outf:
+        for i, r in enumerate(total_rewards):
+            outf.write("%d,%f\n" % (i, r))
+          
     pl.plot(total_rewards, "-")
     pl.show()
