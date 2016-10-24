@@ -25,7 +25,7 @@ The aim of this project is to train a reinforcement learning (RL) agent in a dis
 The model-tree reinforcement learning (control) problem can be condensed into three equations:
 \begin{align}
 Q(s, a) &=f(s, a; w) \label{eq:fa} \\
-\Delta w_t &= \alpha\left[r_{t+1} + \gamma \max_{a'}Q(s, a') - Q(s_t, a_t)\right] \label{eq:update} \\
+\Delta w_t &= \alpha\left[r_{t+1} + \gamma \max_{a'}Q(s_{t+1}, a') - Q(s_t, a_t)\right] \label{eq:update} \\
 a_{t+1} &= \arg\max_{a'} Q(s_{t+1}, a') \nonumber \\
 & = \arg\max_{a'} f(s_{t+1}, a'; w_t)\label{eq:action},
 \end{align}
@@ -112,7 +112,7 @@ After the choice of hyper parameters, we ran the training of our agent for 20000
     \caption{Reward at each episode during agent training. The parameters used for training are shown. The agent receives a 100-episode average reward $>200$ at episode 1165 and is considered {\bf trained}. \label{fig:fig1}}
 \end{figure}
 \subsection{Behavior after training}
-Fig.~\ref{fig:fig2} shows the smoothened version of Fig.~\ref{fig:fig1}. Here we've also shown the entire 20000 training episodes to highlight regions of {\bf overfitting}. The average reward is stable and between 150 and 200 for episodes between  1165 and $\sim$ 14000. After that we enter the regime of overfitting as seen from the rapid drop and downward trend in the average reward. Overfitting occurs when the weights in the network which whould be zero assume large nonzero values due to continued training. This is a well known phenomenon in neural net training which leads to a recommendation of {\bf early stopping}. We deliberately continued to overtrain to illustrate or point. In applications we'd recommend stopping at around 5000 episodes for this particular problem.
+Fig.~\ref{fig:fig2}(a) shows the smoothened version of Fig.~\ref{fig:fig1}. Here we've also shown the entire 20000 training episodes to highlight regions of training, trained and {\bf overfitting}. The average reward is stable and between 150 and 200 for episodes between  1165 and $\sim$ 14000. After that we enter the regime of overfitting as seen from the rapid drop and downward trend in the average reward. Overfitting occurs when the weights in the network which would be zero assume large nonzero values due to continued training. This is a well known phenomenon in neural net training which leads to a recommendation of {\bf early stopping}. Fig.~\ref{fig:fig2}(b) shows three agents trained with different exploration policies (other parameters unchanged) to highlight the {\bf robustness} and {\bf reproducibility} of our training procedure.
 %%
 \begin{figure}[tbp]
     \centering

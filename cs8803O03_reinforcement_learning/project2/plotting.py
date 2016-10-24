@@ -161,7 +161,6 @@ def make_fig3():
              color="magenta", alpha=0.9, lw=2)
 
     ax4.set_xlabel("episode", size=18)
-    # ax4.set_ylabel("average reward", size=18)    
     ax4.tick_params(labelsize=16)
     ax4.legend([r"$\gamma=0.990$", 
                 r"$\gamma=0.995$", 
