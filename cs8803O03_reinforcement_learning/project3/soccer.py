@@ -3,23 +3,46 @@ import random
 import matplotlib.pylab as pl
 import pdb 
 import time 
+from copy import deepcopy
+
+random.seed(0)
+np.random.seed(0)
 
 class Soccer(object):
     def __init__(self):
-        self.gamma = 0.99
-        self.alpha = 1.0e-3
-        self.alpha_decay = 0.999
-        self.max_steps = 1e6
+        self.gamma = 0.7
+        self.alpha0 = self.alpha = 0.05
+        self.alpha_min = 1.0e-3
+        self.alpha_decay = 1.0 - 1.0e-5
+        self.max_steps = 1000
         self.actions = ["N", "W", "E", "S", "T"]
+        self.action_pairs = ["%s%s" % (i, j) for i in self.actions 
+                                             for j in self.actions]
         self.players = ["A", "B"]
+        self.opponent = {"A": "B", "B": "A"}
         self.board = [(i, j) for i in range(1, 3) for j in range(1, 5)]
+        self.goalx = {"A": 1, "B": 4}
 
-        indices = random.sample([(1, 2), (1, 3), (2, 2), (2, 3)], 2)
-        self.pos = dict(zip(self.players, indices))
+        self.states =  [(t1, t2, bw) for t1 in self.board 
+                                     for t2 in self.board 
+                                     for bw in self.players 
+                                     if t1 != t2] 
 
-        self.ball_with = np.random.choice(self.players)
+        d = dict.fromkeys(self.action_pairs, tuple())
+        self.Q = {s: d.copy() for s in self.states}        
+        
+        for state, avdict in self.Q.items():
+            for av in avdict.keys():
+                # avdict[av] = (random.random(), random.random())
+                avdict[av] = (1.0, 1.0)
 
-        self.display()
+        # self.initialize()
+        # self.display()
+
+    def initialize(self):
+        positions = random.sample([(1, 2), (1, 3), (2, 2), (2, 3)], 2)
+        self.pos = dict(zip(self.players, positions))     
+        self.ball_with = np.random.choice(self.players)        
 
     def display(self):
         grid = [["--"] * 4, ["--"] * 4]
@@ -59,27 +82,100 @@ class Soccer(object):
 
         if (next_pos == self.pos[opponent]) and (self.ball_with == player):
             self.ball_with = opponent
-        
 
-    def step(self):
-        for i in range(100):
-            print "step = %d\n" % i                    
+    def done(self):
+        for player in self.players:
+            if (self.ball_with == player) and (self.pos[player][1] in [1, 4]):
+                return True, player, self.pos[player]
+
+        return False, None, None
+
+    def get_state(self):
+        return tuple((self.pos["A"], self.pos["B"], self.ball_with))
+
+
+    # def friend(self, state, idx):        
+    #     qvals = self.Q[state].values()
+    #     return max(qvals, key=lambda x: x[idx])[idx]
+
+    def friend(self, state, idx):        
+        qvals = self.Q[state].values()
+        return max(qvals, key=lambda x: x[idx])[idx]
+
+         
+    def Q_update(self, reward, av, prev_state, next_state):                
+        # pdb.set_trace()
+        qa = self.Q[prev_state][av][0]
+        qb = self.Q[prev_state][av][1]
+
+        al = self.alpha
+        g = self.gamma
+        vf = self.friend
+        
+        qa_update = (1.0 - al) * qa + al * ((1.0 - g) * reward["A"] + g * vf(next_state, 0))
+        qb_update = (1.0 - al) * qb + al * ((1.0 - g) * reward["B"] + g * vf(next_state, 1))
+        self.Q[prev_state][av] = (qa_update, qb_update)
+        # print "updated_values = %0.2f, %0.2f" % (qa_update, qb_update)
+        self.alpha0 *= self.alpha_decay
+        self.alpha = max(self.alpha_min, self.alpha0)
+
+
+    def episode(self):      
+
+        self.initialize()        
+        self.isdone = False   
+        step = 0
+
+        while (not self.isdone) and (step < self.max_steps):
+            step += 1
+            # print "step = %d" % step
             v_action = np.random.choice(self.actions, 2, replace=True)
-            players = np.random.permutation(self.players)
-            opponents = reversed(players)
-            time.sleep(0.1)
-            for p, a, o in zip(players, v_action, opponents):
-                print "player = %s, action = %s, oppn = %s" % (p, a, o)
-                self.move(p, a, o)
-                self.display()
-                print "\n"
-                # if self.game_end():
-                #     self.record_reward()
+            players = np.random.permutation(self.players)            
+            reward = dict.fromkeys(self.players, 0)
+            # time.sleep(0.1)
+            prev_state = self.get_state()
+            for p, a in zip(players, v_action):
+                oppn = self.opponent[p]
+                # print "player = %s, action = %s, oppn = %s" % (p, a, oppn)
+                self.move(p, a, oppn)
+                # self.display()                
+                isdone, goalee, position = self.done()                
+                if isdone:                    
+                    # print "Game end. Ball with: %s, position: %s" % (goalee, position)
+                    if (position[1] == self.goalx[goalee]):
+                        reward = {goalee: 100, self.opponent[goalee]: -100}
+                    else:
+                        reward = {goalee: -100, self.opponent[goalee]: 100}
+                    # print "reward = %s" % reward
+                    self.isdone = True
+                    break
+
+            next_state = self.get_state()
+            # print "prev_state: " + str(prev_state)
+            # print "next_state: " + str(next_state)
+            ad = dict(zip(players, v_action))
+            av = "%s%s" % (ad["A"], ad["B"])
+            self.Q_update(reward, av, prev_state, next_state)
+
+
 
 if __name__ == "__main__":
     soccer = Soccer()
-    soccer.step()
+    N = 200000
+    vals = np.zeros((N,))
+    state = ((1, 3), (1, 2), "B")
+    for i in range(N):
+        if i % 10000 == 0:
+            print "episode = %d" % i
+        soccer.episode()
+        vals[i] = soccer.Q[state]["ST"][0]
 
+    dvals = np.abs(vals[:-1] - vals[1:])
+    pl.close("all")
+    pl.plot(dvals, "-")
+    pl.xlim([0, 1e6])
+    pl.ylim([0, 0.5])
+    pl.show()
 
 
 
