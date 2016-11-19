@@ -46,12 +46,7 @@ class Soccer(object):
         self.monitor_val = np.zeros((int(self.monitor_obs_max), ))
         self.monitor_timestep = np.zeros((int(self.monitor_obs_max), ))
         self.monitor_obs_cnt = 0
-        self.monitor_prob_a = None
-        self.monitor_prob_b = None
 
-
-        # self.initialize()
-        # self.display()
 
     def initialize(self):
         positions = random.sample([(1, 2), (1, 3), (2, 2), (2, 3)], 2)
@@ -107,9 +102,6 @@ class Soccer(object):
     def get_state(self):
         return tuple((self.pos["A"], self.pos["B"], self.ball_with))
 
-    # def friend(self, state, idx):        
-    #     qvals = self.Q[state].values()
-    #     return max(qvals, key=lambda x: x[idx])[idx]
 
     def get_matrix(self, state):        
         N = len(self.actions)        
@@ -120,7 +112,7 @@ class Soccer(object):
             i, j = [self.action_idx.get(a) for a in list(av)]
             qma[i, j] = qv[0]
             qmb[i, j] = qv[1]
-        return qma.T, qmb.T
+        return qma, qmb
 
     def foe(self, state, *args):
         N = len(self.actions)
@@ -128,7 +120,7 @@ class Soccer(object):
         v1 = np.ones((N, 1))
         v0 = np.zeros((N, 1))
         In = np.eye(N)
-        T = np.hstack((-qma, -v1))
+        T = np.hstack((-qma.T, -v1))
         Z = np.hstack((-In, v0))
 
         # Numpy arrays
@@ -145,7 +137,55 @@ class Soccer(object):
         b = matrix(b)
 
         sol = solvers.lp(c, G, h, A, b, solver="glpk")
-        return -sol["x"][-1], sol["x"]
+        return -sol["x"][-1]
+
+    def ceq(self, state, *args):
+        QA, QB = self.get_matrix(state)
+        m, n = QA.shape # m rows, n columns
+
+        # Constraint matrix. Not negated yet.
+        G = np.zeros((2 * m * (m - 1), m * m))
+
+        # Process m * (m - 1) rationality constraints for A
+        row_num = 0
+        for r1 in range(m):
+            start_col = start_row = m * r1
+            end_col = m * (r1 + 1)
+            for r2 in range(m):
+                if r1 != r2:            
+                    G[row_num, start_col : end_col] = QA[r1, :] - QA[r2, :]
+                    row_num += 1
+
+        # Process m * (m - 1) rationality constraints for B
+        for c1 in range(n):
+            for c2 in range(n):
+                if c1 != c2:
+                    Z = np.zeros((m, n))
+                    Z[:, c1] = QB[:, c1] - QB[:, c2]
+                    G[row_num, :] = Z.flatten()
+                    row_num += 1
+        
+        # Positivity constraints
+        G = np.vstack((G, np.eye(m * m)))   
+        h = np.zeros((G.shape[0], 1))
+
+        # Equality (normalization) constraint
+        A = np.ones((1, m * m))
+        b = np.array([[1.0]])
+
+        # Objective function
+        Qt = QA + QB
+        c = Qt.flatten()
+
+        # CVXOPT variables
+        c = matrix(-c)
+        G = matrix(-G)
+        h = matrix(h)
+        A = matrix(A)
+        b = matrix(b)
+
+        sol = solvers.lp(c, G, h, A, b, solver="glpk")
+        return -1.0 * sol["primal objective"]
 
 
     def friend(self, state, idx):        
@@ -155,14 +195,21 @@ class Soccer(object):
          
     def Q_update(self, reward, av, prev_state, next_state):                
         # pdb.set_trace()
-        qa = self.Q[prev_state][av][0]
+        qa, qb = self.Q[prev_state][av]        
         al = self.alpha
         g = self.gamma
-        vf = self.foe
+        vf = self.foe       
         
-        va, pa = vf(next_state, 0)
+        if vf == self.friend:
+            va = vf(next_state, 0)
+            vb = vf(next_state, 1)
+        else:
+            va = vb = vf(next_state)
+
         qa_update = (1.0 - al) * qa + al * ((1.0 - g) * reward["A"] + g * va)
-        self.Q[prev_state][av] = (qa_update, 0.0)
+        qb_update = (1.0 - al) * qb + al * ((1.0 - g) * reward["B"] + g * vb)
+
+        self.Q[prev_state][av] = (qa_update, qb_update)
         self.alpha0 *= self.alpha_decay
         self.alpha = max(self.alpha_min, self.alpha0)
 
@@ -173,10 +220,8 @@ class Soccer(object):
             self.monitor_val[self.monitor_obs_cnt] = qa_update
             self.monitor_timestep[self.monitor_obs_cnt] = self.timestep
             self.monitor_obs_cnt += 1
-            self.monitor_prob_a = pa
 
     def episode(self):      
-
         self.initialize()        
         self.isdone = False   
         step = 0
@@ -206,8 +251,6 @@ class Soccer(object):
                     break
 
             next_state = self.get_state()
-            # print "prev_state: " + str(prev_state)
-            # print "next_state: " + str(next_state)
             ad = dict(zip(players, v_action))
             av = "%s%s" % (ad["A"], ad["B"])
             self.Q_update(reward, av, prev_state, next_state)
@@ -215,7 +258,7 @@ class Soccer(object):
 
 if __name__ == "__main__":
     soccer = Soccer()
-    N = 200000
+    N = 100000
     for i in range(N):
         if i % 1000 == 0:
             print "episode = %d" % i

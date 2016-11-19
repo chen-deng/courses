@@ -120,7 +120,7 @@ class Soccer(object):
         v1 = np.ones((N, 1))
         v0 = np.zeros((N, 1))
         In = np.eye(N)
-        T = np.hstack((-qma, -v1))
+        T = np.hstack((-qma.T, -v1))
         Z = np.hstack((-In, v0))
 
         # Numpy arrays
@@ -178,14 +178,14 @@ class Soccer(object):
         c = Qt.flatten()
 
         # CVXOPT variables
-        c = matrix(-c)
+        c = matrix(c)
         G = matrix(-G)
         h = matrix(h)
         A = matrix(A)
         b = matrix(b)
 
-        sol = solvers.lp(c, G, h, A, b, solver="glpk")
-        return -sol["x"][-1]
+        sol = solvers.lp(c, G, h, A, b, solver=None)
+        return -sol["primal objective"]
 
 
     def friend(self, state, idx):        
@@ -195,13 +195,21 @@ class Soccer(object):
          
     def Q_update(self, reward, av, prev_state, next_state):                
         # pdb.set_trace()
-        qa = self.Q[prev_state][av][0]
+        qa, qb = self.Q[prev_state][av]        
         al = self.alpha
         g = self.gamma
-        vf = self.ceq       
+        vf = self.ceq
         
-        qa_update = (1.0 - al) * qa + al * ((1.0 - g) * reward["A"] + g * vf(next_state, 0))
-        self.Q[prev_state][av] = (qa_update, 0.0)
+        if vf == self.friend:
+            va = vf(next_state, 0)
+            vb = vf(next_state, 1)
+        else:
+            va = vb = vf(next_state)
+
+        qa_update = (1.0 - al) * qa + al * ((1.0 - g) * reward["A"] + g * va)
+        qb_update = (1.0 - al) * qb + al * ((1.0 - g) * reward["B"] + g * vb)
+
+        self.Q[prev_state][av] = (qa_update, qb_update)
         self.alpha0 *= self.alpha_decay
         self.alpha = max(self.alpha_min, self.alpha0)
 
@@ -243,8 +251,6 @@ class Soccer(object):
                     break
 
             next_state = self.get_state()
-            # print "prev_state: " + str(prev_state)
-            # print "next_state: " + str(next_state)
             ad = dict(zip(players, v_action))
             av = "%s%s" % (ad["A"], ad["B"])
             self.Q_update(reward, av, prev_state, next_state)
