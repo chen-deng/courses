@@ -32,6 +32,7 @@ class Soccer(object):
                                      for bw in self.players 
                                      if t1 != t2] 
 
+        # Dictionary to record Q function over action pairs
         d = dict.fromkeys(self.action_pairs, tuple())
         self.Q = {s: d.copy() for s in self.states}        
         
@@ -39,6 +40,10 @@ class Soccer(object):
             for av in avdict.keys():
                 # avdict[av] = (random.random(), random.random())
                 avdict[av] = (1.0, 1.0)
+
+        # Dictionary to record Q function over actions
+        d_single = dict.fromkeys(self.actions, 0.0)
+        self.Q_single = {s: d_single.copy() for s in self.states}
 
         # Variables to monitor state `s` in the CEQ paper
         self.monitor_state = ((1, 3), (1, 2), "B")        
@@ -184,13 +189,22 @@ class Soccer(object):
         A = matrix(A)
         b = matrix(b)
 
-        sol = solvers.lp(c, G, h, A, b, solver="glpk")
-        return -1.0 * sol["primal objective"]
+        sol = solvers.lp(c, G, h, A, b, solver=None)
+        sig = np.array(sol["x"])
+        va = np.sum(sig * QA.flatten())
+        vb = np.sum(sig * QB.flatten())
+        # pdb.set_trace()
+        return -va, -vb
 
+    def qlearner(self, state):
+        return max(self.Q_single[state].values())
+        
 
-    def friend(self, state, idx):        
+    def friend(self, state):        
         qvals = self.Q[state].values()
-        return max(qvals, key=lambda x: x[idx])[idx], None
+        va = max(qvals, key=lambda x: x[0])[0]
+        vb = max(qvals, key=lambda x: x[1])[1]
+        return va, vb
 
          
     def Q_update(self, reward, av, prev_state, next_state):                
@@ -198,11 +212,12 @@ class Soccer(object):
         qa, qb = self.Q[prev_state][av]        
         al = self.alpha
         g = self.gamma
-        vf = self.foe       
+        vf = self.ceq
         
         if vf == self.friend:
-            va = vf(next_state, 0)
-            vb = vf(next_state, 1)
+            va, vb = vf(next_state)            
+        elif vf == self.ceq:
+            va, vb = vf(next_state)
         else:
             va = vb = vf(next_state)
 
@@ -216,6 +231,25 @@ class Soccer(object):
         # Record the monitor state
         if (prev_state == self.monitor_state) \
           and (av == "ST") \
+          and (self.monitor_obs_cnt < self.monitor_obs_max):
+            self.monitor_val[self.monitor_obs_cnt] = qa_update
+            self.monitor_timestep[self.monitor_obs_cnt] = self.timestep
+            self.monitor_obs_cnt += 1
+
+    def Q_single_update(self, reward, av, prev_state, next_state):
+        action = av[0]
+        qa = self.Q_single[prev_state][action]
+        al = self.alpha
+        g = self.gamma
+        va = self.qlearner(next_state)        
+        qa_update = (1.0 - al) * qa + al * ((1.0 - g) * reward["A"] + g * va)
+        self.Q[prev_state][action] = qa_update
+        self.alpha0 *= self.alpha_decay
+        self.alpha = max(self.alpha_min, self.alpha0)        
+
+        # Record the monitor state
+        if (prev_state == self.monitor_state) \
+          and (action == "T") \
           and (self.monitor_obs_cnt < self.monitor_obs_max):
             self.monitor_val[self.monitor_obs_cnt] = qa_update
             self.monitor_timestep[self.monitor_obs_cnt] = self.timestep
@@ -253,7 +287,12 @@ class Soccer(object):
             next_state = self.get_state()
             ad = dict(zip(players, v_action))
             av = "%s%s" % (ad["A"], ad["B"])
-            self.Q_update(reward, av, prev_state, next_state)
+
+            # Run for CE, Foe and Friend Q
+            # self.Q_update(reward, av, prev_state, next_state)
+
+            # Run for regular Q learning
+            self.Q_single_update(reward, av, prev_state, next_state)
 
 
 if __name__ == "__main__":
@@ -262,20 +301,18 @@ if __name__ == "__main__":
     for i in range(N):
         if i % 1000 == 0:
             print "episode = %d" % i
-        soccer.episode()
+        try:
+            soccer.episode()
+        except:
+            print "Error occured, ignoring this episode"
+            pass
 
     tvals = soccer.monitor_timestep[soccer.monitor_timestep>0.]
     mvals = soccer.monitor_val[soccer.monitor_timestep > 0.]
     dvals = np.abs(mvals[:-1] - mvals[1:])
 
+    # Save data as csv
     ts = soccer.monitor_timestep[soccer.monitor_timestep > 0.0].reshape((-1, 1))
     val = soccer.monitor_val[soccer.monitor_timestep > 0.0].reshape((-1, 1))
     data = np.hstack((ts, val))
-    np.savetxt("foe.txt", data)
-
-    # pl.close("all")
-    # pl.plot(tvals[1:] / 1.0E5, dvals, "-")
-    # pl.xlabel(r"Simulation iteration ($10^5$)")
-    # pl.ylabel("Q-value difference")
-    # pl.savefig("foeq.pdf", bbox_inches="tight")
-    # 
+    np.savetxt("qlearning.txt", data)

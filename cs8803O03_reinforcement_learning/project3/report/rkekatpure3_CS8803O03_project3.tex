@@ -1,7 +1,10 @@
 \documentclass[conference]{IEEEtran}
 \usepackage{amsmath,amsfonts,amssymb}
 \usepackage{graphicx}
+%\usepackage{caption}
+\usepackage{subfig}
 \usepackage{color}
+
 %\usepackage{url}
 
 \begin{document}
@@ -23,19 +26,25 @@ Multi-agent Q-learning is a nontrivial departure from regular (deterministic act
 
 %%
 \section{Quick theory tour}
-Four multi-agent Q learning options are presented in the paper:
+The paper presents four multi-agent Q learning options:
 \begin{enumerate}
-\item {\bf Regular:} Ignore the opponent's $Q$ function and actions. Agents are only coupled through rewards. The policy is deterministic and $Q$ function at each state for each agent is simply a vector of $n$ values ($n=5$ in our case). The state value is the max for $Q_i$: $V_i =\max_{a\in A_i} Q_i(s,a)$. 
+\item {\bf Regular:} Ignore the opponent's $Q$ function and actions. Agents are only coupled through rewards. The policy is deterministic and $Q$ function at each state for each agent is simply a vector of $n$ values ($n=5$ in our case). The state value is the max for $Q_i$: 
+\begin{equation}
+V_i =\max_{a\in A_i} Q_i(s,a)
+\end{equation} 
 %
-\item {\bf Friend: } Ignore the opponent's $Q$ function, but consider its actions. Optimal policy is deterministic, and $Q$ function at each stage is a $n\times n$ matrix. The value for each state is the max across this matrix: $V_i = \max_{\vec{a}\in A} Q_i(s, \vec{a})$.
+\item {\bf Friend Q: } Ignore the opponent's $Q$ function, but consider its actions. Optimal policy is deterministic, and $Q$ function at each stage is a $n\times n$ matrix. The value for each state is the max across this matrix:
+\begin{equation}
+V_i = \max_{\vec{a}\in A_1\times A_2} Q_i(s, \vec{a})
+\end{equation}
 %
-\item {\bf Foe: } Ignore opponent $Q$ function, consider its actions, but calculate the value function using {\bf maximin} instead of simple max. This requires linear programming (LP). Maximin also allows {\bf stochastic} optimal policies represented as a probability distribution over $n$ action values. The $Q$ is an $n\times n$ matrix and the state value is: 
+\item {\bf Foe Q: } Ignore opponent $Q$ function, consider its actions, but calculate the value function using {\bf maximin} instead of simple max. This requires linear programming (LP). Maximin also allows {\bf stochastic} optimal policies represented as a probability distribution over $n$ action values. The $Q$ is an $n\times n$ matrix and the state value is: 
 %
 \begin{equation}
 V_i = \max_{\pi\in\text{PD}(A)}\min_{o\in O}\sum_{a\in A}\pi_a Q_i(s, a, o)
 \end{equation}
 %
-\item {\bf CE: } Consider joint actions and compute state value as a function of agents' $Q$ values
+\item {\bf CE Q: } Consider joint actions and compute state value as a function of agents' $Q$ values
 %
 \begin{equation}
 V_i = f_i(Q_1, Q_2)
@@ -49,6 +58,15 @@ where the functions $f_i$ are linear combinations of $Q_i$ and determined throug
 \subsection{Software dependencies}
 %%
 \section{Experiments}
+%
+\begin{figure*}
+\begin{tabular}{cc}
+    \subfloat[CE-Q] {\includegraphics[width=0.45\textwidth]{./figures/ceq.pdf}} 
+    & \subfloat[Foe-Q] {\includegraphics[width=0.45\textwidth]{./figures/foe.pdf}} \\
+    \subfloat[Friend-Q] {\includegraphics[width=0.45\textwidth]{./figures/friend.pdf}}
+    & \subfloat[Q-learning] {\includegraphics[width=0.45\textwidth]{./figures/qlearning.pdf}}    
+\end{tabular}
+\end{figure*}
 %%
 \section*{Summary}
 \begin{thebibliography}{1}

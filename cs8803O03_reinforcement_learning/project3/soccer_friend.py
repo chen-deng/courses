@@ -225,11 +225,8 @@ if __name__ == "__main__":
     mvals = soccer.monitor_val[soccer.monitor_timestep > 0.]
     dvals = np.abs(mvals[:-1] - mvals[1:])
 
-    pl.close("all")
-    pl.plot(tvals[1:] / 1.0E5, dvals, "-")
-    pl.xlabel(r"Simulation iteration ($10^5$)")
-    pl.ylabel("Q-value difference")
-    pl.savefig("friendq.pdf", bbox_inches="tight")
-    
-
-
+    # Save data as csv
+    ts = soccer.monitor_timestep[soccer.monitor_timestep > 0.0].reshape((-1, 1))
+    val = soccer.monitor_val[soccer.monitor_timestep > 0.0].reshape((-1, 1))
+    data = np.hstack((ts, val))
+    np.savetxt("friend.txt", data)
