@@ -2,6 +2,7 @@ import numpy as np
 import random
 import matplotlib.pylab as pl
 import pdb 
+import sys
 import datetime 
 from cvxopt import matrix, solvers
 
@@ -86,7 +87,7 @@ class Soccer(object):
             return (pos[0] + 1, pos[1])
 
         if action == "T":
-            return pos
+            return (pos[0], pos[1])
 
     def move(self, player, action, opponent):        
         next_pos = self.get_next_pos(self.pos[player], action)            
@@ -110,14 +111,13 @@ class Soccer(object):
 
     def get_matrix(self, state):        
         N = len(self.actions)        
-        qma = np.zeros((N, N))
-        qmb = np.zeros((N, N))
-        # pdb.set_trace()
+        QA = np.zeros((N, N))
+        QB = np.zeros((N, N))
         for av, qv in self.Q[state].items():
             i, j = [self.action_idx.get(a) for a in list(av)]
-            qma[i, j] = qv[0]
-            qmb[i, j] = qv[1]
-        return qma, qmb
+            QA[i, j] = qv[0]
+            QB[i, j] = qv[1]        
+        return QA, QB
 
     def foe(self, state, *args):
         N = len(self.actions)
@@ -126,7 +126,7 @@ class Soccer(object):
         v0 = np.zeros((N, 1))
         In = np.eye(N)
         TA = np.hstack((-QA.T, -v1))
-        TB = np.hstack((-QB.T, -v1))
+        TB = np.hstack((-QB, -v1))
         Z = np.hstack((-In, v0))
 
         # Numpy arrays
@@ -137,7 +137,7 @@ class Soccer(object):
         b = np.array([[1.0]])
 
         # CVXOPT variables
-        c = matrix([0.0, 0.0, 0.0, 0.0, 0.0, 1.0])
+        c = matrix(np.array([0.0, 0.0, 0.0, 0.0, 0.0, 1.0]))
         GA = matrix(GA)
         GB = matrix(GB)
         h = matrix(h)
@@ -146,7 +146,7 @@ class Soccer(object):
 
         solA = solvers.lp(c, GA, h, A, b, solver="glpk")
         solB = solvers.lp(c, GB, h, A, b, solver="glpk")
-        return -solA["x"][-1], -solA["x"][-1]
+        return -solA["x"][-1], -solB["x"][-1], solA, solB
 
     def ceq(self, state, *args):
         QA, QB = self.get_matrix(state)
@@ -165,7 +165,7 @@ class Soccer(object):
                     G[row_num, start_col : end_col] = QA[r1, :] - QA[r2, :]
                     row_num += 1
 
-        # Process m * (m - 1) rationality constraints for B
+        # Process m * (m - 1) rationality constraints for B        
         for c1 in range(n):
             for c2 in range(n):
                 if c1 != c2:
@@ -197,7 +197,7 @@ class Soccer(object):
         sig = np.array(sol["x"])
         va = np.sum(sig * QA.flatten())
         vb = np.sum(sig * QB.flatten())        
-        return -va, -vb
+        return -va, -vb, sol
 
     def qlearner(self, state):
         return max(self.Q_single[state].values())
@@ -210,13 +210,12 @@ class Soccer(object):
         return va, vb
 
          
-    def Q_update(self, reward, av, prev_state, next_state):                
-        # pdb.set_trace()
+    def Q_update(self, reward, av, prev_state, next_state):                        
         qa, qb = self.Q[prev_state][av]        
         al = self.alpha
         g = self.gamma
-        vf = self.friend        
-        va, vb = vf(next_state)            
+        vf = self.ceq     
+        va, vb, _, = vf(next_state)            
 
         qa_update = (1.0 - al) * qa + al * ((1.0 - g) * reward["A"] + g * va)
         qb_update = (1.0 - al) * qb + al * ((1.0 - g) * reward["B"] + g * vb)
@@ -229,6 +228,7 @@ class Soccer(object):
         if (prev_state == self.monitor_state) \
           and (av == "ST") \
           and (self.monitor_obs_cnt < self.monitor_obs_max):
+            # print "qa_update = %0.2f, qb_update = %0.2f" % (qa_update, qb_update)
             self.monitor_val[self.monitor_obs_cnt] = qa_update
             self.monitor_timestep[self.monitor_obs_cnt] = self.timestep
             self.monitor_obs_cnt += 1
@@ -263,21 +263,17 @@ class Soccer(object):
             v_action = np.random.choice(self.actions, 2, replace=True)
             players = np.random.permutation(self.players)            
             reward = dict.fromkeys(self.players, 0)
-            # time.sleep(0.1)
+
             prev_state = self.get_state()
             for p, a in zip(players, v_action):
                 oppn = self.opponent[p]
-                # print "player = %s, action = %s, oppn = %s" % (p, a, oppn)
                 self.move(p, a, oppn)
-                # self.display()                
                 isdone, goalee, position = self.done()                
-                if isdone:                    
-                    # print "Game end. Ball with: %s, position: %s" % (goalee, position)
+                if isdone:                                        
                     if (position[1] == self.goalx[goalee]):
                         reward = {goalee: 100, self.opponent[goalee]: -100}
                     else:
-                        reward = {goalee: -100, self.opponent[goalee]: 100}
-                    # print "reward = %s" % reward
+                        reward = {goalee: -100, self.opponent[goalee]: 100}                    
                     self.isdone = True
                     break
 
@@ -300,9 +296,12 @@ if __name__ == "__main__":
             print "episode = %d" % i
         try:
             soccer.episode()
+        except KeyboardInterrupt:
+            print "Print program interrupted"
+            sys.exit(0)
         except:
             print "Error occured, ignoring this episode"
-            pass
+            raise
 
     tvals = soccer.monitor_timestep[soccer.monitor_timestep>0.]
     mvals = soccer.monitor_val[soccer.monitor_timestep > 0.]

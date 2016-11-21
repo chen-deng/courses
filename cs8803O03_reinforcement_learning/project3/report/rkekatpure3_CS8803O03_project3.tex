@@ -23,34 +23,34 @@
 
 \IEEEpeerreviewmaketitle
 \section{Introduction}
-Multi-agent Q-learning is a nontrivial departure from deterministic action, single $Q$ function MDPs in two ways: (1) state values are functions of multiple Q's (2) optimal policies are allowed to be stochastic. The Greenwald paper \cite{greenwald} demonstrates the inadequacy of regular Q learning and convergence of multi-agent Q learning learning. Project 3 aims to deepen our understanding of multi-agent (adversarial or cooperative) Q learning through reproduction of Greenwald's results for a $2\times4$ grid game called soccer.
+Multi-agent $Q$-learning is a nontrivial departure from deterministic action, single $Q$ function MDPs. The Greenwald paper \cite{greenwald} (1) demonstrates that policies in multi-agent situations could be stochastic, (2) formulates a computable algorithm, called ``correlated $Q$ learning'' to find the stochastic optimal policies and (3) shows a way to circumvent the NP-hard Nash equilibrium problem. In Project 3, we aim to reproduce Greenwald's results for a $2\times4$ grid game called ``soccer''.
 
 %%
 \section{Quick theory tour}
-The paper presents four multi-agent Q learning options:
+The paper presents four multi-agent $Q$ learning options:
 \begin{enumerate}
-\item {\bf Q learning:} Ignore the opponent's $Q$ function and actions. Agents are only coupled through rewards. The policy is deterministic and $Q$ function at each state for each agent is simply a vector of $n$ values ($n=5$ in our case). The state value is the max for $Q_i$: 
+\item {\bf Q learning:} Ignores the opponent's $Q$ function and actions. Agents are coupled only through rewards. The policy is deterministic and $Q$ function at each state for each agent is a vector of $n$ values ($n=5$ in our case). The state value for agent $i$ is max over the $Q$ vector: 
 \begin{equation}
 V_i =\max_{a\in A_i} Q_i(s,a)
 \end{equation} 
 %
-\item {\bf Friend Q: } Ignore the opponent's $Q$ function, but consider its actions. Optimal policy is deterministic, and $Q$ function at each stage is a $n\times n$ matrix. The value for each state is the max across this matrix:
+\item {\bf Friend Q: } Ignores the opponent's $Q$ function, but works with joint action space. Optimal policy is deterministic, and $Q$ function at each stage for each agent is a $n\times n$ matrix. The state value for agent $i$ is the max over the $Q$ matrix:
 \begin{equation}
 V_i = \max_{\vec{a}\in A_1\times A_2} Q_i(s, \vec{a})
 \end{equation}
 %
-\item {\bf Foe Q: } Ignore opponent $Q$ function, consider its actions, but calculate the value function using {\bf maximin} instead of simple max. This requires linear programming (LP). Maximin also allows {\bf stochastic} optimal policies represented as a probability distribution over $n$ action values. The $Q$ is an $n\times n$ matrix and the state value is: 
+\item {\bf Foe Q: } Ignores opponent's $Q$ function, but calculates the value using {\bf maximin} instead of simple max and requires linear programming (LP). Maximin also allows {\bf stochastic} optimal policies represented as a probability distribution over $n$ action values. The $Q$ function at each state for each agent is an $n\times n$ matrix and the state value is given by: 
 %
 \begin{equation}
 V_i = \max_{\pi\in\text{PD}(A)}\min_{o\in O}\sum_{a\in A_i}\pi(a) Q_i(s, a, o)
 \end{equation}
 %
-\item {\bf CE Q: } Consider joint actions and compute state value as a function of agents' $Q$ values
+\item {\bf CE Q: } Considers opponent's Q as well as joint actions and computes state value as a function as:
 %
 \begin{equation}
 V_i = \sum_{\vec{a}\in A_1\times A_2} \sigma(\vec{a})Q_i(s, \vec{a})
 \end{equation}
-where $\sigma$ is a probability distribution over the $n^2$ action pairs computed using the {\em u}CE-Q objective out of the four CE options provided. In simplified notation:
+where $\sigma(\vec{a})$ is a probability distribution over the $n^2$ action pairs $\vec{a}$ computed using the {\em u}CE-Q objective out of the four CE options provided. In simplified notation:
 \begin{equation}
 \sigma = \arg \max_{\sigma\in\text{CE}} \sum_{\vec{a}\in A_1 \times A_2} \big[Q_1(s, \vec{a}) + Q_2(s, \vec{a})\big]
 \end{equation}
@@ -64,25 +64,43 @@ s \stackrel{\Delta}{=} \text{tuple}((r_A,c_A), (r_B,c_B), \text{ball})
 \end{equation}
 The individual action space is $A_1, A_2 \in [N, W, E, S, T]$ ($T=$ stick) and the joint action space is $A_1\times A_2$. Since the number of states $ = 8\times 7\times 2 = 112$ is small, the Q values can be maintained in memory as a nested dictionary:
 \begin{equation}
-Q \stackrel{\Delta}{=} \{s: \{\vec{a}: (Q_A, Q_B)\}\} 
+Q \stackrel{\Delta}{=} \{s: \{\vec{a}: (v_A, v_B)\}\} 
 \end{equation}
-where the inner dictionary maps 25 action pairs to a tuple of Q values for agents $A$ and $B$, and the outer dictionary maps this structure to the state. The structure can also be thought as a mapping from each of the 112 states to a $5\times 5\times 2$ matrix of Q values for $A$ and $B$ for each action pair. 
+where the inner dictionary maps 25 action pairs to a tuple of $Q$ values for agents $A$ and $B$, and the outer dictionary maps this structure to the state. The structure can also be thought as a mapping from each of the 112 states to a $5\times 5\times 2$ matrix of $Q$ values for $A$ and $B$ for each action pair. 
 %%
 \subsection{Simulation}
 A {\bf move} is defined as one action each by $A$ and $B$ carried out in a random order. An {\bf episode} is a set of moves until a goal is scored. An episode can: (1) in theory continue forever and (2) end mid-move if a goal is scored.
 
 To simulate a move, we select an action pair $(a_1, a_2)$ from $A_1\times A_2$ and assign it to $(A, B)$, who execute in random order. After executing its action, each agent checks for the game-end condition and receives rewards for reaching the next state. Rewards are zero except when the game ends. In addition to the prescribed rules, we observed the following additional conventions: (1) an episode never starts in the end condition, (2) goal is counted even when a stationary empty-handed agent in a goal position is handed a ball by the mobile ball-carrying agent; i.e. $A$ could lose if it is in $B$'s goal position and handed a ball.
 
-After each move, values $V_i$, $i\in [A,B]$ for each state are calculated and used to update the two $Q$-functions according to the update equations in Table 1 in the Greenwald paper. Because of the small number of states, we learn via an {\bf off-policy} $Q$ learning algorithm (i.e. actions are always random).
+After each move, values $V_i$, $i\in [A,B]$ for each state are calculated and used to update the two $Q$-functions according to the update equations in Table 1 in the Greenwald paper:
+%%
+\begin{equation}
+Q_i^{t+1}(s, a) \leftarrow (1-\alpha_t) Q_i^t(s, a) + \alpha_t\big[(1-\gamma) R_i^t + \gamma V_i^t(s)\big]
+\end{equation}
+%%
+where the action variable $a$ is a single action in case of $Q$-learning and Foe $Q$ and an action vector, $\vec{a}$, for Friend $Q$ and CE $Q$. Because of the small number of states, we learn via an {\bf off-policy} $Q$ learning algorithm (i.e. actions are always random).
+%%
+%%
+\begin{figure*}[tbp]
+\centering 
+\begin{tabular}{cc}
+    \subfloat[CE-Q] {\includegraphics[width=0.4\textwidth]{./figures/ceq.pdf}} 
+    & \subfloat[Foe-Q] {\includegraphics[width=0.4\textwidth]{./figures/foe.pdf}} \\
+    \subfloat[Friend-Q] {\includegraphics[width=0.4\textwidth]{./figures/friend.pdf}}
+    & \subfloat[Q-learning] {\includegraphics[width=0.4\textwidth]{./figures/qlearning.pdf}}    
+\end{tabular}
+\caption{Results of the soccer game in the Greenwald paper. (a) Correlated $Q$, (b) Foe $Q$, (c) Friend $Q$ and (d) $Q$ learning.\label{fig:maql}}
+\end{figure*}
 %%
 \subsection{Recording $Q$-function difference}
-The paper reports the evolution of the $Q_A$ values for the state $s = ((1, 3)_A,(1,2)_B, B)$ (a.k.a the monitor state) for the action pair $ST$. The evolution of the $Q$ values for the monitor state are stored in an array and updated only when that state is actually encountered in an episode. A global timestep counter, which increments across episodes, is maintained to record the value of the timesteps at which the monitor state is updated. The $Q$-function difference is calculated exactly according to the prescription: $\textsc{err}_A^t = \vert Q_A^t(s, \vec{a}) - Q_A^{t-1}(s, \vec{a})\vert$.
+The paper reports the evolution of the $Q_A$ values for the state $s = ((1, 3)_A,(1,2)_B, B)$ (a.k.a the monitor state) for the action pair $\vec{a} = ST$. The evolution of the $Q$ values for the monitor state are stored in an array and updated only when that state is actually encountered in an episode. A global timestep counter, which increments across episodes, is maintained to record the value of the timesteps at which the monitor state is updated. The $Q$-function difference is calculated exactly according to the prescription: $\textsc{err}_A^t = \vert Q_A^t(s, \vec{a}) - Q_A^{t-1}(s, \vec{a})\vert$.
 \subsection{Linear programming}
 Correlated Q and Foe Q implementation require LP. After some research \cite{cvxopt}, we chose the {\tt CVXOPT} LP package with the GNU {\tt glpk} solver. This resulted in over $10\times$ speedup relative to {\tt PuLP}, {\tt SciPy} and {\tt CVXOPT}'s default solver. However, setting up the problem in {\tt CVXOPT}'s matrix language requires care (proper negations, column ordering etc).
 \subsection{Software dependencies}
 The only external packages for our implementation are {\tt CVXOPT}, {\tt numpy} for core computation and {\tt matplotlib} and {\tt Pandas} for postprocessing.
 \subsection{Hyperparameters}
-We experienced that the convergence curves are {extremely sensitive} to the choice of initial learning rate and the decay schedule. We've collected the hyperparemeters of our implementation in Table~\ref{tab:hyper}.
+We experienced that the convergence curves are {\bf sensitive} to the choice of initial learning rate and the decay schedule. The converged values are less sensitive. We've collected the hyperparemeters of our implementation in Table~\ref{tab:hyper}.
 \begin{table}[!h]
 \begin{center}
 \begin{tabular}{|l|l|}
@@ -99,20 +117,33 @@ $\alpha_d$ & 0.9999954 \\ \hline
 \end{table}
 %%
 \section{Results}
-The results of the simulation of the soccer game are displayed in Fig.~\ref{fig:maql}. We start our description with Fig.~\ref{fig:maql}(d), which shows the results for regular (or un 
+Before discussing the actual results, note that the {\bf spirit} of the assignment is (1) to demonstrate that regular and Friend $Q$ learning do not work in stochastic multi-agent situations and (2) to discover stochastic optimal policies for multi-agent environments. While we aim to reproduce Greenwald results, we don't try to eliminate small cosmetic differences, as long as optimal policies match.
+
+The results of the simulation of the soccer game are displayed in Fig.~\ref{fig:maql} and are in the same order as \cite{greenwald}. Below is a summary of results:
 %
-\begin{figure*}[htbp]
-\centering 
-\begin{tabular}{cc}
-    \subfloat[CE-Q] {\includegraphics[width=0.4\textwidth]{./figures/ceq.pdf}} 
-    & \subfloat[Foe-Q] {\includegraphics[width=0.4\textwidth]{./figures/foe.pdf}} \\
-    \subfloat[Friend-Q] {\includegraphics[width=0.4\textwidth]{./figures/friend.pdf}}
-    & \subfloat[Q-learning] {\includegraphics[width=0.4\textwidth]{./figures/qlearning.pdf}}    
-\end{tabular}
-\caption{Results of the soccer game in the Greenwald paper. (a) Correlated $Q$, (b) Foe $Q$, (c) Friend $Q$ and (d) $Q$ learning.\label{fig:maql}}
-\end{figure*}
+\begin{enumerate}
+\item Regular $Q$-learning, shown in Fig.~\ref{fig:maql}(d), does not converge, but instead simply traces the decay schedule. The trend of our $Q$-learning curve and the general conclusion is consistent with \cite{greenwald}.
+%
+\item Friend $Q$ shown in Fig.~\ref{fig:maql}(c) converges, but it converges to a deterministic action  by design (i.e. in Friend $Q$ formulation we simply don't seek a probability distribution). Our results converge at $\sim50000$ timesteps, which is close to what can be estimated from the paper. 
+%
+\item Foe $Q$, shown in Fig.~\ref{fig:maql}(b) allows for stochastic actions by computing probability distribution over {\em independent} action vectors. The Foe $Q$ probability distribution for $A$ converges to $\pi_A(s) = [0.00, 0.00, 0.00, 0.32, 0.68]$ and $\pi_B(s) = [0.00, 0.00, 0.00, 0.68, 0.32]$ for actions $[N, W, E, S, T]$. So The agent is randomizing between sticking and heading south, consistent with description in the paper. The figure appears a bit different than the paper; this is to be expected given the differences in the learning rates, decay schedules and randomizer seeds.
+%
+\item Correlated $Q$ results are plotted in Fig.~\ref{fig:maql}(a). The overall graph appears similar to the paper. We also obtain a probabilistic action space for $A$ and $B$ which agrees with the optimal policy for Foe $Q$ (highest probability mass assigned to action pairs $SS$ and $TT$). Our Foe and CE $Q$ graphs are dissimilar. In the paper, the graphs are {\bf identical}. We are unable to reproduce this aspect.
+\end{enumerate}
+%%
+%\begin{figure*}[htbp]
+%\centering 
+%\begin{tabular}{cc}
+%    \subfloat[CE-Q] {\includegraphics[width=0.4\textwidth]{./figures/ceq.pdf}} 
+%    & \subfloat[Foe-Q] {\includegraphics[width=0.4\textwidth]{./figures/foe.pdf}} \\
+%    \subfloat[Friend-Q] {\includegraphics[width=0.4\textwidth]{./figures/friend.pdf}}
+%    & \subfloat[Q-learning] {\includegraphics[width=0.4\textwidth]{./figures/qlearning.pdf}}    
+%\end{tabular}
+%\caption{Results of the soccer game in the Greenwald paper. (a) Correlated $Q$, (b) Foe $Q$, (c) Friend $Q$ and (d) $Q$ learning.\label{fig:maql}}
+%\end{figure*}
 %%
 \section*{Summary}
+Project 3 was a challenging exercise that forced a synthesis of the multi-agent systems. 
 \begin{thebibliography}{1}
 \bibitem{greenwald}
 A.~Greenwald and K.~Hall, ``Correlated Q learning,'' {\em ICML}, 2001.

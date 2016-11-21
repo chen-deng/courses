@@ -17,8 +17,9 @@ def draw_and_save(folder, datafilename, imagefilename):
     fig.savefig(imagefilename, bbox_inches="tight")
 
 if __name__ == "__main__":
-    infilenames = ["ceq.txt", "foe.txt", "friend.txt", "qlearning.txt"]
+    # infilenames = ["ceq.txt", "foe.txt", "friend.txt", "qlearning.txt"]
+    infilenames = ["ceq.txt", "foe1.txt", "foe2.txt", "foe3.txt"]
     imagefilenames = ["ceq.pdf", "foe.pdf", "friend.pdf", "qlearning.pdf"]
 
     for dtfile, imgfile in zip(infilenames, imagefilenames):
-        draw_and_save("data", dtfile, imgfile)
+        draw_and_save(".", dtfile, imgfile)
