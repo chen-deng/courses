@@ -12,7 +12,7 @@ solvers.options["show_progress"] = False
 solvers.options['glpk'] = {'msg_lev': 'GLP_MSG_OFF'}  # cvxopt 1.1.8
 
 class Soccer(object):
-    def __init__(self):
+    def __init__(self, algo):
         self.timestep = 0
         self.gamma = 0.9
         self.alpha0 = self.alpha = 0.15
@@ -52,6 +52,15 @@ class Soccer(object):
         self.monitor_val = np.zeros((int(self.monitor_obs_max), ))
         self.monitor_timestep = np.zeros((int(self.monitor_obs_max), ))
         self.monitor_obs_cnt = 0
+
+        # Assign the algorithm
+        self.algos = {  "friend": self.friend,
+                        "foe": self.foe,
+                        "ceq": self.ceq,
+                        "qlearner": self.qlearner
+                    }
+
+        self.vf = self.algos[algo]
 
 
     def initialize(self):
@@ -197,7 +206,7 @@ class Soccer(object):
         sig = np.array(sol["x"])
         va = np.sum(sig * QA.flatten())
         vb = np.sum(sig * QB.flatten())        
-        return -va, -vb, sol
+        return -va, -vb, sol, None
 
     def qlearner(self, state):
         return max(self.Q_single[state].values())
@@ -207,15 +216,15 @@ class Soccer(object):
         qvals = self.Q[state].values()
         va = max(qvals, key=lambda x: x[0])[0]
         vb = max(qvals, key=lambda x: x[1])[1]
-        return va, vb
+        return va, vb, None, None
 
          
     def Q_update(self, reward, av, prev_state, next_state):                        
         qa, qb = self.Q[prev_state][av]        
         al = self.alpha
         g = self.gamma
-        vf = self.ceq     
-        va, vb, _, = vf(next_state)            
+        # vf = self.ceq     
+        va, vb, _, _ = self.vf(next_state)            
 
         qa_update = (1.0 - al) * qa + al * ((1.0 - g) * reward["A"] + g * va)
         qb_update = (1.0 - al) * qb + al * ((1.0 - g) * reward["B"] + g * vb)
@@ -238,7 +247,7 @@ class Soccer(object):
         qa = self.Q_single[prev_state][action]
         al = self.alpha
         g = self.gamma
-        va = self.qlearner(next_state)        
+        va = self.vf(next_state)        
         qa_update = (1.0 - al) * qa + al * ((1.0 - g) * reward["A"] + g * va)
         self.Q[prev_state][action] = qa_update
         self.alpha0 *= self.alpha_decay
@@ -281,15 +290,18 @@ class Soccer(object):
             ad = dict(zip(players, v_action))
             av = "%s%s" % (ad["A"], ad["B"])
 
-            # Run for CE, Foe and Friend Q
-            self.Q_update(reward, av, prev_state, next_state)
-
-            # Run for regular Q learning
-            # self.Q_single_update(reward, av, prev_state, next_state)
+            if self.vf == self.qlearner:    
+                self.Q_single_update(reward, av, prev_state, next_state)
+            else:            
+                self.Q_update(reward, av, prev_state, next_state)
 
 
 if __name__ == "__main__":
-    soccer = Soccer()
+    algo = "ceq"
+    # algo = "foe"
+    # algo = "qlearner"
+    # algo = "friend"
+    soccer = Soccer(algo)
     N = 200000
     for i in range(N):
         if i % 1000 == 0:
@@ -301,7 +313,7 @@ if __name__ == "__main__":
             sys.exit(0)
         except:
             print "Error occured, ignoring this episode"
-            raise
+            pass
 
     tvals = soccer.monitor_timestep[soccer.monitor_timestep>0.]
     mvals = soccer.monitor_val[soccer.monitor_timestep > 0.]
